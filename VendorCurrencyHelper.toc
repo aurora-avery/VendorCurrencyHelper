@@ -1,0 +1,8 @@
+## IconTexture: Interface\AddOns\VendorCurrencyHelper\Icon.png
+## Interface: 120000, 120001, 120002, 110207
+## Title: Vendor Currency Helper
+## Notes: Displays owned currency and item-currency counts in the bottom-left of the vendor frame.
+## Author: Aurora Avery
+## Version: 1.0.0
+
+Core.lua
