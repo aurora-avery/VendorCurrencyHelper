@@ -3,6 +3,6 @@
 ## Title: Vendor Currency Helper
 ## Notes: Displays owned currency and item-currency counts in the bottom-left of the vendor frame.
 ## Author: Aurora Avery
-## Version: 1.0.1
+## Version: 1.0.3
 
 Core.lua

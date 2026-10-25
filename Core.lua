@@ -163,13 +163,14 @@ local function UpdateVendorCurrencies(debugMode)
         end
     end
 
-    if #list == 0 then
+if #list == 0 then
         frame:Hide()
         return
     end
 
     frame:Show()
     local prevEntry = nil
+    local lastEntry = nil
     for i = 1, 3 do
         local entry = entries[i]
         local data = list[i]
@@ -178,18 +179,31 @@ local function UpdateVendorCurrencies(debugMode)
             entry.text:SetText(formatted)
             entry.icon:SetTexture(data.icon)
             entry.link = data.link
-            entry:SetWidth(entry.text:GetStringWidth() + 20)
+            local textW = entry.text:GetStringWidth()
+            if not textW or textW == 0 then textW = 14 end
+            entry:SetWidth(textW + 24)
             entry:ClearAllPoints()
             if not prevEntry then
                 entry:SetPoint("LEFT", frame, "LEFT", 0, 0)
             else
-                entry:SetPoint("LEFT", prevEntry, "RIGHT", 10, 0)
+                entry:SetPoint("LEFT", prevEntry, "RIGHT", 16, 0)
             end
             entry:Show()
             prevEntry = entry
+            lastEntry = entry
         else
             entry:Hide()
         end
+    end
+
+    -- If Blizzard's Extra Currency bar is shown on the bottom-right,
+    -- push MerchantMoneyFrame to the right of our last custom currency icon!
+    if lastEntry and MerchantMoneyFrame and (
+        (MerchantExtraCurrencyBg and MerchantExtraCurrencyBg:IsShown()) or
+        (MerchantExtraCurrencyInset and MerchantExtraCurrencyInset:IsShown())
+    ) then
+        MerchantMoneyFrame:ClearAllPoints()
+        MerchantMoneyFrame:SetPoint("LEFT", lastEntry.icon, "RIGHT", 28, 0)
     end
 end
 
@@ -211,6 +225,22 @@ VCH:SetScript("OnEvent", function(self, event)
         end
     end
 end)
+
+if MerchantFrame_UpdateCurrencies then
+    hooksecurefunc("MerchantFrame_UpdateCurrencies", function()
+        if MerchantFrame and MerchantFrame:IsShown() then
+            UpdateVendorCurrencies()
+        end
+    end)
+end
+
+if MerchantFrame_Update then
+    hooksecurefunc("MerchantFrame_Update", function()
+        if MerchantFrame and MerchantFrame:IsShown() then
+            UpdateVendorCurrencies()
+        end
+    end)
+end
 
 SLASH_VCH1 = "/vch"
 SlashCmdList["VCH"] = function(msg)
