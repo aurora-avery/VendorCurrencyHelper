@@ -13,12 +13,8 @@ local function EnsureDisplayFrame()
     display:SetFrameStrata("HIGH")
     display:SetFrameLevel(100)
 
-    if MerchantMoneyFrame then
-        display:SetPoint("LEFT", MerchantFrame, "LEFT", 14, 0)
-        display:SetPoint("BOTTOM", MerchantMoneyFrame, "BOTTOM", 0, 0)
-    else
-        display:SetPoint("BOTTOMLEFT", MerchantFrame, "BOTTOMLEFT", 14, 8)
-    end
+    -- Anchor strictly to MerchantFrame's bottom-left so it never shifts when MerchantMoneyFrame moves
+    display:SetPoint("BOTTOMLEFT", MerchantFrame, "BOTTOMLEFT", 14, 7)
 
     for i = 1, 3 do
         local entry = CreateFrame("Frame", nil, display)
@@ -57,11 +53,48 @@ local function GetNumVendorItems()
     return 0
 end
 
+-- Check if Blizzard's default vendor bar is already showing this currency or texture in the bottom-right
+local function IsShownInDefaultBar(currencyID, itemTexture)
+    -- 1. If Blizzard's Extra Currency bar is visible, inspect its child token frames
+    if MerchantExtraCurrencyBg and MerchantExtraCurrencyBg:IsShown() then
+        return true
+    end
+    if MerchantExtraCurrencyInset and MerchantExtraCurrencyInset:IsShown() then
+        return true
+    end
+
+    -- 2. Also check standard BackpackTokenFrame / MerchantToken buttons if present
+    for i = 1, 3 do
+        local tokenBtn = _G["MerchantToken" .. i] or (BackpackTokenFrame and BackpackTokenFrame.Tokens and BackpackTokenFrame.Tokens[i])
+        if tokenBtn and tokenBtn:IsShown() then
+            if currencyID and tokenBtn.currencyID == currencyID then
+                return true
+            end
+            if itemTexture and tokenBtn.icon and tokenBtn.icon:GetTexture() == itemTexture then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
 local function GetOwnedInfo(itemTexture, itemLink, currencyName)
-    -- 1. Check Currency Link
+    -- 1. Check Currency Tab Link
     if itemLink and C_CurrencyInfo and C_CurrencyInfo.GetCurrencyIDFromLink then
         local currencyID = C_CurrencyInfo.GetCurrencyIDFromLink(itemLink)
         if currencyID and currencyID > 0 then
+            -- Skip if the default UI is already displaying currencies on the bottom-right
+            if IsShownInDefaultBar(currencyID, itemTexture) then
+                return nil
+            end
+            -- Also check if GetMerchantCurrencies() lists this currency for the native bar
+            if GetMerchantCurrencies then
+                local c1, c2, c3 = GetMerchantCurrencies()
+                if currencyID == c1 or currencyID == c2 or currencyID == c3 then
+                    return nil
+                end
+            end
             local info = C_CurrencyInfo.GetCurrencyInfo(currencyID)
             if info then
                 return info.quantity or 0, info.iconFileID or itemTexture, "currency:" .. currencyID
@@ -69,7 +102,7 @@ local function GetOwnedInfo(itemTexture, itemLink, currencyName)
         end
     end
 
-    -- 2. Check Bag/Warband Item via itemLink or currencyName
+    -- 2. Check Bag/Warband Item via itemLink or currencyName (never shown by default UI)
     local itemID
     if itemLink then
         itemID = tonumber(itemLink:match("item:(%d+)"))
@@ -93,6 +126,9 @@ local function GetOwnedInfo(itemTexture, itemLink, currencyName)
 
     -- 3. Fallback if itemLink isn't cached yet but currencyName is provided
     if currencyName and itemTexture then
+        if IsShownInDefaultBar(nil, itemTexture) then
+            return nil
+        end
         local count = (C_Item and C_Item.GetItemCount and C_Item.GetItemCount(currencyName)) or 0
         return count, itemTexture, "name:" .. currencyName
     end
@@ -104,7 +140,6 @@ local function UpdateVendorCurrencies(debugMode)
     local frame = EnsureDisplayFrame()
     if not frame or not MerchantFrame or not MerchantFrame:IsShown() then
         if frame then frame:Hide() end
-        if debugMode then print("|cff00ccff[VCH]|r MerchantFrame is not open.") end
         return
     end
 
@@ -112,18 +147,10 @@ local function UpdateVendorCurrencies(debugMode)
     local list = {}
     local numItems = GetNumVendorItems()
 
-    if debugMode then
-        print("|cff00ccff[VCH Debug]|r Scanning " .. tostring(numItems) .. " vendor items...")
-    end
-
     for i = 1, numItems do
         local numCosts = GetMerchantItemCostInfo and GetMerchantItemCostInfo(i) or 0
         for c = 1, numCosts do
             local itemTexture, itemValue, itemLink, currencyName = GetMerchantItemCostItem(i, c)
-            if debugMode and i == 1 then
-                print(string.format("  Item 1 Cost %d: tex=%s, val=%s, link=%s, name=%s",
-                    c, tostring(itemTexture), tostring(itemValue), tostring(itemLink), tostring(currencyName)))
-            end
             local count, icon, key = GetOwnedInfo(itemTexture, itemLink, currencyName)
             if key and not seen[key] then
                 seen[key] = true
@@ -174,7 +201,7 @@ VCH:RegisterEvent("CURRENCY_DISPLAY_UPDATE")
 
 VCH:SetScript("OnEvent", function(self, event)
     if event == "PLAYER_LOGIN" then
-        print("|cff00ccff[VendorCurrencyHelper]|r Loaded! Type /vch debug at a vendor to inspect.")
+        print("|cff00ccff[VendorCurrencyHelper]|r Loaded!")
     elseif event == "MERCHANT_SHOW" then
         UpdateVendorCurrencies()
         C_Timer.After(0.2, function() UpdateVendorCurrencies() end)
